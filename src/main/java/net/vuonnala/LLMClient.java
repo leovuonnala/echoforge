@@ -7,6 +7,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -98,4 +100,34 @@ public class LLMClient {
             throw e; // Rethrow so it's handled upstream
         }
     }
+
+    public List<String> fetchAvailableModels() throws IOException, InterruptedException {
+        String endpoint = baseUrl + "/v1/models";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .header("Accept", "application/json")
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+        if (response.statusCode() != 200) {
+            throw new IOException("Failed to fetch models: HTTP " + response.statusCode());
+        }
+
+        JsonNode rootNode = MAPPER.readTree(response.body());
+        JsonNode models = rootNode.get("data");
+
+        List<String> modelNames = new ArrayList<>();
+        if (models != null && models.isArray()) {
+            for (JsonNode model : models) {
+                String id = model.get("id").asText();
+                modelNames.add(id);
+            }
+        }
+
+        return modelNames;
+    }
+
 }
