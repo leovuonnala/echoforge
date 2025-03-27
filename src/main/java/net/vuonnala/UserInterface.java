@@ -2,16 +2,19 @@ package net.vuonnala;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.swing.SwingWorker;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class UserInterface extends JFrame {
 
@@ -29,6 +32,7 @@ public class UserInterface extends JFrame {
     private DefaultListModel<String> historyListModel;
     private JList<String> historyList;
     private JComboBox<String> modelDropdown;
+    private List<JSONObject> messageHistory = new ArrayList<>();
 
     public UserInterface(MessageDispatcher dispatcher, MessageValidator validator) {
         super("LLM Message Dispatch Tool");
@@ -185,28 +189,29 @@ public class UserInterface extends JFrame {
 
         if (!systemMessage.isEmpty()) {
             addMessage("System", systemMessage);
+            JSONObject sysMsg = new JSONObject();
+            sysMsg.put("role", "system");
+            sysMsg.put("content", systemMessage);
+            messageHistory.add(sysMsg);
         }
+
         addMessage("User", userMessage);
+        JSONObject userMsg = new JSONObject();
+        userMsg.put("role", "user");
+        userMsg.put("content", userMessage);
+        messageHistory.add(userMsg);
+
         userInputField.setText("");
         systemInputField.setText("");
-
         sendButton.setEnabled(false);
 
         SwingWorker<String, Void> worker = new SwingWorker<>() {
             @Override
             protected String doInBackground() throws Exception {
-                StringBuilder jsonBuilder = new StringBuilder();
-                jsonBuilder.append("{\"model\": \"").append(selectedModel).append("\", \"messages\": [");
-                if (!systemMessage.isEmpty()) {
-                    jsonBuilder.append("{\"role\": \"system\", \"content\": \"")
-                            .append(systemMessage.replace("\"", "\\"))
-                            .append("\"},");
-                }
-                jsonBuilder.append("{\"role\": \"user\", \"content\": \"")
-                        .append(userMessage.replace("\"", "\\"))
-                        .append("\"}]");
-                jsonBuilder.append("}");
-                return dispatcher.dispatch(jsonBuilder.toString(), ip, port);
+                JSONObject requestJson = new JSONObject();
+                requestJson.put("model", selectedModel);
+                requestJson.put("messages", new JSONArray(messageHistory));
+                return dispatcher.dispatch(requestJson.toString(), ip, port);
             }
 
             @Override
@@ -214,16 +219,22 @@ public class UserInterface extends JFrame {
                 sendButton.setEnabled(true);
                 try {
                     String response = get();
-                    org.json.JSONObject json = new org.json.JSONObject(response);
+                    JSONObject json = new JSONObject(response);
                     if (json.has("choices")) {
-                        org.json.JSONArray choices = json.getJSONArray("choices");
+                        JSONArray choices = json.getJSONArray("choices");
                         for (int i = 0; i < choices.length(); i++) {
-                            org.json.JSONObject choice = choices.getJSONObject(i);
+                            JSONObject choice = choices.getJSONObject(i);
                             if (choice.has("message")) {
-                                org.json.JSONObject msg = choice.getJSONObject("message");
+                                JSONObject msg = choice.getJSONObject("message");
                                 String role = msg.optString("role", "LLM");
                                 String content = msg.optString("content", "");
                                 addMessage(role, content);
+
+                                // Append LLM response to message history
+                                JSONObject llmMsg = new JSONObject();
+                                llmMsg.put("role", role);
+                                llmMsg.put("content", content);
+                                messageHistory.add(llmMsg);
                             }
                         }
                     } else {

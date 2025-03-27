@@ -24,7 +24,6 @@ public class LLMClient {
     private final String baseUrl;
 
     public LLMClient(String ip, int port) {
-        // Example: Force HTTP/1.1, set a 5s connect timeout
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)               // Force HTTP/1.1
                 .connectTimeout(Duration.ofSeconds(5))             // Connection handshake
@@ -50,8 +49,6 @@ public class LLMClient {
      * @throws InterruptedException
      */
     public String sendToLlmStudio(String validatedJson) throws IOException, InterruptedException {
-        System.out.println("[DEBUG] sendToLlmStudio called. Attempting HTTP request...");
-
         // 1) Parse the validated JSON
         JsonNode rootNode = MAPPER.readTree(validatedJson);
 
@@ -72,17 +69,13 @@ public class LLMClient {
         JSONObject requestBody = new JSONObject();
         requestBody.put("model", model);
         requestBody.put("messages", new JSONArray(messagesNode.toString()));
-        // If you need other fields, parse them from validatedJson and add to requestBody
 
-        // 5) Build the POST request, with an overall 5s timeout
         String endpoint = baseUrl + "/v1/chat/completions";
         System.out.println("[DEBUG] POSTing to: " + endpoint);
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(endpoint))
                 .header("Content-Type", "application/json")
-                // This covers the time to receive the entire response, not just connect
-                //.timeout(Duration.ofSeconds(5))
                 .POST(HttpRequest.BodyPublishers.ofString(requestBody.toString()))
                 .build();
 

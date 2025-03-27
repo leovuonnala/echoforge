@@ -14,7 +14,7 @@
         "properties": {
           "role": {
             "type": "string",
-            "enum": ["system", "user"],
+            "enum": ["system", "user", "assistant"],
             "description": "Role of the message, either 'system' or 'user'"
           },
           "content": {

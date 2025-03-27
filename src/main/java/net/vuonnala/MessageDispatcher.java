@@ -23,19 +23,13 @@ public class MessageDispatcher {
      * @throws Exception   If validation or sending fails
      */
     public String dispatch(String jsonContent, String ip, int port) throws Exception {
-        System.out.println("[DEBUG] Dispatch method called.");
-        // 1) Validate
         messageValidator.validate(jsonContent);
-
-        // 2) Extract conversation ID
         String conversationId = messageInput.getConversationId(jsonContent);
 
-        // 3) Send to LLM
         System.out.println("[DEBUG] Creating new LLMClient with IP=" + ip + " port=" + port);
         LLMClient client = new LLMClient(ip, port);
         String response = client.sendToLlmStudio(jsonContent);
         System.out.println("[DEBUG] Response from LLMClient: " + response);
-        // 4) Store the response
         messageStorage.storeResponse(conversationId, response);
 
         return response;
