@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "conversation_id": {
+      "type": "string",
+      "description": "Unique identifier for the conversation"
+    },
+    "messages": {
+      "type": "array",
+      "description": "List of messages in the conversation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "user"],
+            "description": "Role of the message, either 'system' or 'user'"
+          },
+          "content": {
+            "type": "string",
+            "description": "Actual text content of the message"
+          }
+        },
+        "required": ["role", "content"]
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata for the conversation",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional ISO 8601 timestamp"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Optional list of tags or categories"
+        }
+      }
+    }
+  },
+  "required": ["messages"]
+}
