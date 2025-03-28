@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -20,7 +21,7 @@ public class UserInterface extends JFrame {
 
     private final MessageDispatcher dispatcher;
     private final MessageValidator validator;
-
+    private String currentConversationId = UUID.randomUUID().toString();
     private JTextField ipField;
     private JTextField portField;
     private JButton dispatchButton;
@@ -32,13 +33,16 @@ public class UserInterface extends JFrame {
     private DefaultListModel<String> historyListModel;
     private JList<String> historyList;
     private JComboBox<String> modelDropdown;
-    private List<JSONObject> messageHistory = new ArrayList<>();
+    private List<JSONObject> messageHistory;
+    private final MessageStorage messageStorage;
+    private JButton newChatButton;
 
-    public UserInterface(MessageDispatcher dispatcher, MessageValidator validator) {
+
+    public UserInterface(MessageDispatcher dispatcher, MessageValidator validator, MessageStorage messageStorage) {
         super("LLM Message Dispatch Tool");
         this.dispatcher = dispatcher;
         this.validator = validator;
-
+        this.messageStorage = messageStorage;
         initComponents();
         layoutComponents();
         initMenu();
@@ -48,6 +52,7 @@ public class UserInterface extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1000, 700);
         setLocationRelativeTo(null);
+        messageHistory = new ArrayList<>();
     }
 
     private void initMenu() {
@@ -82,11 +87,13 @@ public class UserInterface extends JFrame {
         ipField = new JTextField("127.0.0.1", 10);
         portField = new JTextField("1234", 5);
         dispatchButton = new JButton("Connect");
+        newChatButton = new JButton("New Chat");
         userInputField = new JTextField(50);
         systemInputField = new JTextField(50);
         sendButton = new JButton("Send");
         modelDropdown = new JComboBox<>();
         modelDropdown.setPrototypeDisplayValue("Select model...");
+
 
         chatPanel = new JPanel();
         chatPanel.setLayout(new BoxLayout(chatPanel, BoxLayout.Y_AXIS));
@@ -98,7 +105,10 @@ public class UserInterface extends JFrame {
         historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         historyList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                loadSelectedHistory(historyList.getSelectedValue());
+                String selectedConversationId = historyList.getSelectedValue();
+                System.out.println("selected conversation id: " + selectedConversationId);
+
+                loadSelectedHistory(selectedConversationId);
             }
         });
     }
@@ -112,6 +122,8 @@ public class UserInterface extends JFrame {
         configPanel.add(dispatchButton);
         configPanel.add(new JLabel("Model:"));
         configPanel.add(modelDropdown);
+        configPanel.add(newChatButton);
+
 
         JPanel inputPanel = new JPanel(new BorderLayout());
         JPanel stackedInput = new JPanel();
@@ -161,7 +173,17 @@ public class UserInterface extends JFrame {
                         "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
+        newChatButton.addActionListener(e -> startNewChat());
     }
+
+    private void startNewChat() {
+        messageHistory.clear();
+        chatPanel.removeAll();
+        chatPanel.revalidate();
+        chatPanel.repaint();
+
+        currentConversationId = UUID.randomUUID().toString();
+        addMessage("System", "Started a new conversation: " + currentConversationId);    }
 
     private void doDispatch() {
         final String ip = ipField.getText().trim();
@@ -209,6 +231,7 @@ public class UserInterface extends JFrame {
             @Override
             protected String doInBackground() throws Exception {
                 JSONObject requestJson = new JSONObject();
+                requestJson.put("conversation_id", currentConversationId);
                 requestJson.put("model", selectedModel);
                 requestJson.put("messages", new JSONArray(messageHistory));
                 return dispatcher.dispatch(requestJson.toString(), ip, port);
@@ -280,26 +303,65 @@ public class UserInterface extends JFrame {
 
     private void loadHistory() {
         historyListModel.clear();
-        try (Stream<Path> paths = Files.walk(Path.of("responses"))) {
-            List<String> files = paths
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName().toString().endsWith(".json"))
-                    .map(Path::toString)
-                    .sorted()
-                    .collect(Collectors.toList());
-            for (String path : files) {
-                historyListModel.addElement(path);
-            }
-        } catch (IOException ignored) {}
-    }
-
-    private void loadSelectedHistory(String filePath) {
-        if (filePath == null) return;
         try {
-            String fileContent = Files.readString(Path.of(filePath));
-            addMessage("File", fileContent);
-        } catch (IOException e) {
-            addMessage("Error", "Failed to load file: " + e.getMessage());
+            List<String> conversationIds = messageStorage.getAllConversationIds();
+            for (String conversationId : conversationIds) {
+                historyListModel.addElement(conversationId);
+            }
+        } catch (Exception e) {
+            addMessage("Error", "Failed to load response history: " + e.getMessage());
         }
     }
+
+    private void loadSelectedHistory(String conversationId) {
+        if (conversationId == null || conversationId.isEmpty()) return;
+
+        try {
+            chatPanel.removeAll();
+            chatPanel.revalidate();
+            chatPanel.repaint();
+            messageHistory.clear();
+
+            List<MessageStorage.ResponseRecord> records = messageStorage.getResponsesByConversationId(conversationId);
+
+            for (MessageStorage.ResponseRecord record : records) {
+                JSONObject request = new JSONObject(record.requestJson);
+                JSONArray messages = request.optJSONArray("messages");
+
+                if (messages != null) {
+                    for (int i = 0; i < messages.length(); i++) {
+                        JSONObject msg = messages.getJSONObject(i);
+                        String role = msg.optString("role", "unknown");
+                        String content = msg.optString("content", "");
+                        addMessage(role, content);
+                        messageHistory.add(msg);  // rebuild message history
+                    }
+                }
+
+                // Also show the assistant response
+                JSONObject response = new JSONObject(record.responseContent);
+                JSONArray choices = response.optJSONArray("choices");
+                if (choices != null) {
+                    for (int i = 0; i < choices.length(); i++) {
+                        JSONObject choice = choices.getJSONObject(i);
+                        JSONObject msg = choice.optJSONObject("message");
+                        if (msg != null) {
+                            String role = msg.optString("role", "assistant");
+                            String content = msg.optString("content", "");
+                            addMessage(role, content);
+                            messageHistory.add(msg);
+                        }
+                    }
+                }
+            }
+
+            currentConversationId = conversationId;
+
+        } catch (Exception e) {
+            addMessage("Error", "Failed to load full conversation: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+
 }

@@ -30,7 +30,7 @@ public class MessageDispatcher {
         LLMClient client = new LLMClient(ip, port);
         String response = client.sendToLlmStudio(jsonContent);
         System.out.println("[DEBUG] Response from LLMClient: " + response);
-        messageStorage.storeResponse(conversationId, response);
+        messageStorage.storeResponse(conversationId, jsonContent, response);
 
         return response;
     }

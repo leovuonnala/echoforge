@@ -1,39 +1,123 @@
 package net.vuonnala;
 
-import org.json.JSONObject;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.sql.*;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MessageStorage {
 
-    private final Path basePath;
+    private final String dbUrl;
 
-    public MessageStorage(String baseDirectory) {
-        // e.g. baseDirectory could be "responses/"
-        this.basePath = Path.of(baseDirectory);
+    public MessageStorage(String dbFile) throws SQLException {
+        this.dbUrl = "jdbc:sqlite:" + dbFile;
+        initializeDatabase();
     }
 
-    /**
-     * Store the LLM response in a file named with timestamp.
-     *
-     * @param conversationId An ID from the JSON or "unknown"
-     * @param responseContent The raw text or JSON from LLMStudio
-     */
-    public void storeResponse(String conversationId, String responseContent) throws IOException {
-        Files.createDirectories(basePath.resolve(conversationId));
+    private void initializeDatabase() throws SQLException {
+        try (Connection conn = DriverManager.getConnection(dbUrl)) {
+            String sql = """
+                CREATE TABLE IF NOT EXISTS responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    conversation_id TEXT NOT NULL,
+                    request_json TEXT NOT NULL,
+                    response_content TEXT NOT NULL
+                );
+            """;
 
-        String timestamp = Instant.now().toString().replace(":", "-");
-        String fileName = "response_" + timestamp + ".json";
-        Path filePath = basePath.resolve(conversationId).resolve(fileName);
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(sql);
+            }
+        }
+    }
 
-        JSONObject data = new JSONObject();
-        data.put("timestamp", Instant.now().toString());
-        data.put("conversation_id", conversationId);
-        data.put("response_content", responseContent);
+    public void storeResponse(String conversationId, String requestJson, String responseContent) throws SQLException {
+        String sql = "INSERT INTO responses (timestamp, conversation_id, request_json, response_content) VALUES (?, ?, ?, ?)";
 
-        Files.writeString(filePath, data.toString(2));
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, Instant.now().toString());
+            pstmt.setString(2, conversationId);
+            pstmt.setString(3, requestJson);         // new field: the full message history sent to LLM
+            pstmt.setString(4, responseContent);     // the reply from LLM
+            pstmt.executeUpdate();
+        }
+    }
+
+
+    public List<ResponseRecord> getAllResponses() throws SQLException {
+        String sql = "SELECT * FROM responses ORDER BY timestamp DESC";
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            return extractResults(rs);
+        }
+    }
+
+    public List<ResponseRecord> getResponsesByConversationId(String conversationId) throws SQLException {
+        String sql = "SELECT * FROM responses WHERE conversation_id = ? ORDER BY timestamp ASC";
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, conversationId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return extractResults(rs);
+            }
+        }
+    }
+
+    public List<String> getAllConversationIds() throws SQLException {
+        List<String> ids = new ArrayList<>();
+        String sql = "SELECT DISTINCT conversation_id FROM responses ORDER BY MAX(timestamp) DESC";  // valid in some DBs but safer to just sort later
+
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT DISTINCT conversation_id FROM responses")) {
+
+            while (rs.next()) {
+                ids.add(rs.getString("conversation_id"));
+            }
+        }
+        return ids;
+    }
+
+
+    private List<ResponseRecord> extractResults(ResultSet rs) throws SQLException {
+        List<ResponseRecord> results = new ArrayList<>();
+        while (rs.next()) {
+            ResponseRecord record = new ResponseRecord(
+                    rs.getInt("id"),
+                    rs.getString("timestamp"),
+                    rs.getString("conversation_id"),
+                    rs.getString("request_json"),
+                    rs.getString("response_content")
+            );
+            results.add(record);
+        }
+        return results;
+    }
+
+    public static class ResponseRecord {
+        public final int id;
+        public final String timestamp;
+        public final String conversationId;
+        public final String requestJson;
+        public final String responseContent;
+
+        public ResponseRecord(int id, String timestamp, String conversationId, String requestJson, String responseContent) {
+            this.id = id;
+            this.timestamp = timestamp;
+            this.conversationId = conversationId;
+            this.requestJson = requestJson;
+            this.responseContent = responseContent;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("ID: %d\nTime: %s\nConversation ID: %s\nResponse:\n%s\n",
+                    id, timestamp, conversationId, responseContent);
+        }
     }
 }
+
+
