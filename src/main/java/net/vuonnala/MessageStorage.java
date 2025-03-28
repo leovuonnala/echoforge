@@ -25,10 +25,40 @@ public class MessageStorage {
                     response_content TEXT NOT NULL
                 );
             """;
+            String createConversations = """
+                CREATE TABLE IF NOT EXISTS conversations (
+                    conversation_id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """;
+            String createResponses = """
+                CREATE TABLE IF NOT EXISTS responses (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    conversation_id TEXT NOT NULL,
+                    request_json TEXT NOT NULL,
+                    response_content TEXT NOT NULL,
+                    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
+                );
+            """;
 
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute(sql);
+                stmt.execute(createConversations);
+                stmt.execute(createResponses);
             }
+        }
+    }
+    public void registerConversation(String conversationId, String title) throws SQLException {
+        String sql = "INSERT OR IGNORE INTO conversations (conversation_id, title, created_at) VALUES (?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, conversationId);
+            pstmt.setString(2, title);
+            pstmt.setString(3, Instant.now().toString());
+            pstmt.executeUpdate();
         }
     }
 
@@ -66,20 +96,49 @@ public class MessageStorage {
         }
     }
 
-    public List<String> getAllConversationIds() throws SQLException {
-        List<String> ids = new ArrayList<>();
-        String sql = "SELECT DISTINCT conversation_id FROM responses ORDER BY MAX(timestamp) DESC";  // valid in some DBs but safer to just sort later
+    public List<ConversationSummary> getAllConversations() throws SQLException {
+        List<ConversationSummary> list = new ArrayList<>();
+        String sql = "SELECT conversation_id, title FROM conversations ORDER BY created_at DESC";
 
         try (Connection conn = DriverManager.getConnection(dbUrl);
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT DISTINCT conversation_id FROM responses")) {
+             ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
-                ids.add(rs.getString("conversation_id"));
+                String id = rs.getString("conversation_id");
+                String title = rs.getString("title");
+                list.add(new ConversationSummary(id, title));
             }
         }
-        return ids;
+
+        return list;
     }
+    public void updateConversationTitle(String conversationId, String newTitle) throws SQLException {
+        String sql = "UPDATE conversations SET title = ? WHERE conversation_id = ?";
+
+        try (Connection conn = DriverManager.getConnection(dbUrl);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, newTitle);
+            pstmt.setString(2, conversationId);
+            pstmt.executeUpdate();
+        }
+    }
+
+    public static class ConversationSummary {
+        public final String id;
+        public final String title;
+
+        public ConversationSummary(String id, String title) {
+            this.id = id;
+            this.title = title;
+        }
+
+        @Override
+        public String toString() {
+            return title;
+        }
+    }
+
 
 
     private List<ResponseRecord> extractResults(ResultSet rs) throws SQLException {

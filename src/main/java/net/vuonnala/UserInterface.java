@@ -2,13 +2,17 @@ package net.vuonnala;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -36,6 +40,7 @@ public class UserInterface extends JFrame {
     private List<JSONObject> messageHistory;
     private final MessageStorage messageStorage;
     private JButton newChatButton;
+    private Map<String, String> conversationMap = new HashMap<>();  // title → UUID
 
 
     public UserInterface(MessageDispatcher dispatcher, MessageValidator validator, MessageStorage messageStorage) {
@@ -105,10 +110,57 @@ public class UserInterface extends JFrame {
         historyList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         historyList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
-                String selectedConversationId = historyList.getSelectedValue();
-                System.out.println("selected conversation id: " + selectedConversationId);
+                String title = historyList.getSelectedValue();
+                String id = conversationMap.get(title);
+                loadSelectedHistory(id);
+            }
+        });
+        JPopupMenu historyMenu = new JPopupMenu();
+        JMenuItem renameItem = new JMenuItem("Rename Chat...");
+        historyMenu.add(renameItem);
+        renameItem.addActionListener(e -> {
+            String currentTitle = historyList.getSelectedValue();
+            if (currentTitle == null) return;
 
-                loadSelectedHistory(selectedConversationId);
+            String newTitle = JOptionPane.showInputDialog(
+                    UserInterface.this,
+                    "Enter a new title for the chat:",
+                    currentTitle
+            );
+
+            if (newTitle != null && !newTitle.trim().isEmpty()) {
+                String conversationId = conversationMap.get(currentTitle);
+
+                try {
+                    messageStorage.updateConversationTitle(conversationId, newTitle.trim());
+                    loadHistory(); // refresh sidebar
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(UserInterface.this,
+                            "Failed to rename chat: " + ex.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+
+// Show menu on right-click
+        historyList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (e.isPopupTrigger()) showMenu(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (e.isPopupTrigger()) showMenu(e);
+            }
+
+            private void showMenu(MouseEvent e) {
+                int index = historyList.locationToIndex(e.getPoint());
+                if (index >= 0) {
+                    historyList.setSelectedIndex(index); // ensure selection
+                    historyMenu.show(historyList, e.getX(), e.getY());
+                }
             }
         });
     }
@@ -183,7 +235,18 @@ public class UserInterface extends JFrame {
         chatPanel.repaint();
 
         currentConversationId = UUID.randomUUID().toString();
-        addMessage("System", "Started a new conversation: " + currentConversationId);    }
+
+        String title = "Chat on " + LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+
+        try {
+            messageStorage.registerConversation(currentConversationId, title);
+        } catch (SQLException e) {
+            addMessage("Error", "Could not register conversation: " + e.getMessage());
+        }
+        addMessage("System", "Started new conversation: " + title);
+        loadHistory();
+    }
 
     private void doDispatch() {
         final String ip = ipField.getText().trim();
@@ -303,13 +366,16 @@ public class UserInterface extends JFrame {
 
     private void loadHistory() {
         historyListModel.clear();
+        conversationMap.clear();
+
         try {
-            List<String> conversationIds = messageStorage.getAllConversationIds();
-            for (String conversationId : conversationIds) {
-                historyListModel.addElement(conversationId);
+            List<MessageStorage.ConversationSummary> convos = messageStorage.getAllConversations();
+            for (MessageStorage.ConversationSummary convo : convos) {
+                historyListModel.addElement(convo.title);
+                conversationMap.put(convo.title, convo.id);
             }
         } catch (Exception e) {
-            addMessage("Error", "Failed to load response history: " + e.getMessage());
+            addMessage("Error", "Failed to load history: " + e.getMessage());
         }
     }
 
