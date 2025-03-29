@@ -4,8 +4,7 @@ public class Main {
     public static void main(String[] args) {
         try {
             // 1) Create a default validator with a known schema path
-            String defaultSchemaPath = "schema.json"; // Adjust as needed
-            MessageValidator validator = new MessageValidator(defaultSchemaPath);
+            MessageValidator validator = new MessageValidator(Main.class.getClassLoader().getResourceAsStream("schema.json"));
 
             // 2) Create message input logic & storage
             MessageInput messageInput = new MessageInput();

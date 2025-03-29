@@ -8,22 +8,20 @@ import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.util.Set;
 
 public class MessageValidator {
     private JsonSchema schema;
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    public MessageValidator(String schemaPath) throws IOException {
-        loadSchema(schemaPath);
+    public MessageValidator(InputStream schemaStream) throws IOException {
+        loadSchema(schemaStream);
     }
 
-    public void loadSchema(String schemaPath) throws IOException {
-        String schemaContent = Files.readString(Path.of(schemaPath));
-        JsonNode schemaNode = MAPPER.readTree(schemaContent);
 
+    public void loadSchema(InputStream schemaStream) throws IOException {
+        JsonNode schemaNode = MAPPER.readTree(schemaStream);
         JsonSchemaFactory factory = JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V201909);
         this.schema = factory.getSchema(schemaNode);
     }

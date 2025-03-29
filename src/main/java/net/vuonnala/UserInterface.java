@@ -6,15 +6,13 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.swing.SwingWorker;
 
@@ -41,6 +39,7 @@ public class UserInterface extends JFrame {
     private final MessageStorage messageStorage;
     private JButton newChatButton;
     private Map<String, String> conversationMap = new HashMap<>();  // title → UUID
+    private MessageBuilderUI messageBuilderUI;
 
 
     public UserInterface(MessageDispatcher dispatcher, MessageValidator validator, MessageStorage messageStorage) {
@@ -70,8 +69,8 @@ public class UserInterface extends JFrame {
             int result = fileChooser.showOpenDialog(this);
             if (result == JFileChooser.APPROVE_OPTION) {
                 File schemaFile = fileChooser.getSelectedFile();
-                try {
-                    validator.loadSchema(schemaFile.getAbsolutePath());
+                try (InputStream stream = Files.newInputStream(schemaFile.toPath())) {
+                    validator.loadSchema(stream);  // Use InputStream version
                     JOptionPane.showMessageDialog(this,
                             "Schema loaded successfully from: " + schemaFile.getName(),
                             "Schema Loaded", JOptionPane.INFORMATION_MESSAGE);
@@ -88,6 +87,7 @@ public class UserInterface extends JFrame {
         setJMenuBar(menuBar);
     }
 
+
     private void initComponents() {
         ipField = new JTextField("127.0.0.1", 10);
         portField = new JTextField("1234", 5);
@@ -98,6 +98,7 @@ public class UserInterface extends JFrame {
         sendButton = new JButton("Send");
         modelDropdown = new JComboBox<>();
         modelDropdown.setPrototypeDisplayValue("Select model...");
+        messageBuilderUI = new MessageBuilderUI();
 
 
         chatPanel = new JPanel();
@@ -193,7 +194,28 @@ public class UserInterface extends JFrame {
 
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.add(configPanel, BorderLayout.NORTH);
-        mainPanel.add(chatScrollPane, BorderLayout.CENTER);
+        //mainPanel.add(chatScrollPane, BorderLayout.CENTER);
+        JTabbedPane centerTabs = new JTabbedPane();
+        centerTabs.addTab("Chat View", chatScrollPane);
+        centerTabs.addTab("Message Builder", messageBuilderUI);
+        mainPanel.add(centerTabs, BorderLayout.CENTER);
+
+        JButton dispatchFromBuilder = new JButton("Dispatch JSON");
+        dispatchFromBuilder.addActionListener(e -> {
+            String json = messageBuilderUI.getFinalJson();
+            String ip = ipField.getText().trim();
+            String portText = portField.getText().trim();
+            try {
+                int port = Integer.parseInt(portText);
+                String response = dispatcher.dispatch(json, ip, port);
+                addMessage("System", "Builder dispatch response:\n" + response);
+                loadHistory();
+            } catch (Exception ex) {
+                addMessage("Error", "Failed to dispatch from builder: " + ex.getMessage());
+            }
+        });
+
+        messageBuilderUI.add(dispatchFromBuilder, BorderLayout.SOUTH);
         mainPanel.add(inputPanel, BorderLayout.SOUTH);
         mainPanel.add(scrollHistory, BorderLayout.EAST);
 
