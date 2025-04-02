@@ -89,7 +89,6 @@ public class LLMClient {
         } catch (IOException | InterruptedException e) {
             // Catch the exact connection or timeout error
             System.out.println("[DEBUG] Exception during HTTP request: " + e.getMessage());
-            e.printStackTrace();
             throw e; // Rethrow so it's handled upstream
         }
     }

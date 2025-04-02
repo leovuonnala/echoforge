@@ -447,7 +447,6 @@ public class UserInterface extends JFrame {
 
         } catch (Exception e) {
             addMessage("Error", "Failed to load full conversation: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 

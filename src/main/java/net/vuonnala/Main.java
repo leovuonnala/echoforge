@@ -18,7 +18,6 @@ public class Main {
             ui.setVisible(true);
 
         } catch (Exception e) {
-            e.printStackTrace();
             System.exit(1);
         }
     }
