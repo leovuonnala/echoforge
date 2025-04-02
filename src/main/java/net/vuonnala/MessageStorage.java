@@ -16,35 +16,26 @@ public class MessageStorage {
 
     private void initializeDatabase() throws SQLException {
         try (Connection conn = DriverManager.getConnection(dbUrl)) {
-            String sql = """
-                CREATE TABLE IF NOT EXISTS responses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT NOT NULL,
-                    conversation_id TEXT NOT NULL,
-                    request_json TEXT NOT NULL,
-                    response_content TEXT NOT NULL
-                );
-            """;
             String createConversations = """
-                CREATE TABLE IF NOT EXISTS conversations (
-                    conversation_id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    created_at TEXT NOT NULL
-                );
-            """;
+            CREATE TABLE IF NOT EXISTS conversations (
+                conversation_id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+        """;
+
             String createResponses = """
-                CREATE TABLE IF NOT EXISTS responses (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp TEXT NOT NULL,
-                    conversation_id TEXT NOT NULL,
-                    request_json TEXT NOT NULL,
-                    response_content TEXT NOT NULL,
-                    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
-                );
-            """;
+            CREATE TABLE IF NOT EXISTS responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                request_json TEXT NOT NULL,
+                response_content TEXT NOT NULL,
+                FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
+            );
+        """;
 
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute(sql);
                 stmt.execute(createConversations);
                 stmt.execute(createResponses);
             }
