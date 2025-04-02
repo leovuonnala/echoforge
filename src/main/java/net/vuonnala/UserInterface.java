@@ -43,7 +43,7 @@ public class UserInterface extends JFrame {
 
 
     public UserInterface(MessageDispatcher dispatcher, MessageValidator validator, MessageStorage messageStorage) {
-        super("LLM Message Dispatch Tool");
+        super("EchoForge");
         this.dispatcher = dispatcher;
         this.validator = validator;
         this.messageStorage = messageStorage;

@@ -50,6 +50,8 @@
 
     </dependencies>
     <build>
+        <finalName>echoforge</finalName>
+
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
