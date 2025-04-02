@@ -2,11 +2,11 @@
 Course project for advanced software quality and security (quality project)
 
 # What it is:
-It allows the user to send messages to a locally hosted large language model.
+It allows the user to send messages to a locally hosted large language model. LM Studio was used as the LLM hosting system, OLLAMA etc have not been tested. If it provides an OpenAI-esque api, this will work with it.
 
 Limitations:
 
-Everything is in plaintext, no authentication is done because LM Studio does not offer such niceties yet.
+Everything is in plaintext, no authentication is done between EchoForge and LM Studio because LM Studio does not offer such niceties yet.
 
 Requirements:
 
