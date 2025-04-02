@@ -10,4 +10,4 @@ Everything is in plaintext, no authentication is done because LM Studio does not
 
 Requirements:
 
-Java 22, everything mentioned in pom.xml. Run 'mvn clean package' to get an executable jar file.
+Java 22, everything mentioned in pom.xml. Run `mvn clean package` to get an executable jar file.
