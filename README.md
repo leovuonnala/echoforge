@@ -7,6 +7,7 @@ It allows the user to send messages to a locally hosted large language model. LM
 # Limitations:
 
 Everything is in plaintext, no authentication or encryption is done between EchoForge and LM Studio because LM Studio does not offer such niceties yet.
+
 This was designed, programmed and tested over the span of 2 days. Don't expect too much.
 
 # Requirements:
