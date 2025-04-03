@@ -2,7 +2,7 @@
 Course project for advanced software quality and security (quality project)
 
 # What it is:
-It allows the user to send messages to a locally hosted large language model. LM Studio was used as the LLM hosting system, OLLAMA etc have not been tested. If it provides an OpenAI-esque api, this will work with it.
+It allows the user to send messages to a locally hosted large language model. LM Studio was used as the LLM hosting system.  Other LLM providers may work, if they offer OpenAI-like API.
 
 Limitations:
 
